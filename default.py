@@ -34,6 +34,7 @@ script_player_resumes = ''
 script_screensaver_starts = ''
 script_screensaver_stops = ''
 script_idle = ''
+script_db_update = ''
 
 __addon__        = xbmcaddon.Addon()
 __addonversion__ = __addon__.getAddonInfo('version')
@@ -51,7 +52,10 @@ class Main:
     global script_xbmc_starts
     if script_xbmc_starts:
       log('Going to execute script = "' + script_xbmc_starts + '"')
-      subprocess.Popen([script_xbmc_starts])
+      try:
+          subprocess.call(script_xbmc_starts)
+      except:
+          log('Error executing script when xbmc starts')
     self._daemon()
 
   def _init_vars(self):
@@ -67,6 +71,8 @@ class Main:
     global script_player_resumes
     global script_screensaver_starts
     global script_screensaver_stops
+    global script_idle
+    global script_db_update
     script_xbmc_starts = xbmc.translatePath(__addon__.getSetting("xbmc_starts"))
     script_player_starts = xbmc.translatePath(__addon__.getSetting("player_starts"))
     script_player_stops = xbmc.translatePath(__addon__.getSetting("player_stops"))
@@ -75,6 +81,7 @@ class Main:
     script_screensaver_starts = xbmc.translatePath(__addon__.getSetting("screensaver_starts"))
     script_screensaver_stops = xbmc.translatePath(__addon__.getSetting("screensaver_stops"))
     script_idle = xbmc.translatePath(__addon__.getSetting("xbmc_idle"))
+    script_db_update = xbmc.translatePath(__addon__.getSetting("db_update"))
     log('script xbmc starts = "' + script_xbmc_starts + '"')
     log('script player starts = "' + script_player_starts + '"')
     log('script player stops = "' + script_player_stops + '"')
@@ -83,6 +90,7 @@ class Main:
     log('script screensaver starts = "' + script_screensaver_starts + '"')
     log('script screensaver stops = "' + script_screensaver_stops + '"')
     log('script idle = "' + script_idle + '"')
+    log('db update = "' + script_db_update + '"')
 
   def _player_status(self):
     return self.Player.playing_status()
@@ -95,8 +103,11 @@ class Main:
         if xbmc.getGlobalIdleTime() > 60 * __addon__.getSetting("idle_time"):
           log('XBMC is idle')
           log('Going to execute script = "' + script_idle + '"')
-          subprocess.Popen([script_idle])
-      xbmc.sleep(10000)
+          try:
+              subprocess.call(script_idle)
+          except:
+              log('ERROR executing script when xbmc goes idle')
+      xbmc.sleep(4000)
     log('abort requested')
 
 
@@ -114,14 +125,35 @@ class MyMonitor(xbmc.Monitor):
     global script_screensaver_starts
     if script_screensaver_starts:
       log('Going to execute script = "' + script_screensaver_starts + '"')
-      subprocess.Popen([script_screensaver_starts,self.get_player_status()])
+      try:
+          subprocess.call([script_screensaver_starts,self.get_player_status()])
+      except:
+          log('ERROR executing script when screensaver starts')
 
   def onScreensaverDeactivated(self):
     log('screensaver stops')
     global script_screensaver_stops
     if script_screensaver_stops:
       log('Going to execute script = "' + script_screensaver_stops + '"')
-      subprocess.Popen([script_screensaver_stops])
+      try:
+          subprocess.call(script_screensaver_stops)
+      except:
+          log('ERROR executing script when screensaver stops')
+
+  def onDatabaseUpdated(self,db):
+    log('database updated')
+    global script_db_update
+    if script_db_update:
+      log('Going to execute script = "' + script_db_update + '"')
+      try:
+          subprocess.call([script_db_update,db])
+      except:
+          log('ERROR executing script when database updates')
+
+  def onAbortRequested(self):
+    # Circular references don't get collected by the garbage collector, causing memory leaks
+    self.get_player_status = None
+    self.update_settings = None
 
 class MyPlayer(xbmc.Player):
   def __init__(self):
@@ -159,12 +191,23 @@ class MyPlayer(xbmc.Player):
            type = "episode"
     return 'type=' + type
 
+  def playing_filename(self):
+      filename = ''
+      try:
+          filename = self.getPlayingFile()
+      except:
+          pass
+      return 'filename=' + filename
+
   def onPlayBackStarted(self):
     log('player starts')
     global script_player_starts
     if script_player_starts:
       log('Going to execute script = "' + script_player_starts + '"')
-      subprocess.Popen([script_player_starts,self.playing_type()])
+      try:
+          subprocess.call([script_player_starts,self.playing_type()])
+      except:
+          log('ERROR executing script when player starts')
 
   def onPlayBackEnded(self):
     self.onPlayBackStopped()
@@ -174,26 +217,32 @@ class MyPlayer(xbmc.Player):
     global script_player_stops
     if script_player_stops:
       log('Going to execute script = "' + script_player_stops + '"')
-      subprocess.Popen([script_player_stops,self.playing_type()])
+      try:
+          subprocess.call([script_player_stops,self.playing_type()])
+      except:
+          log('ERROR executing script when player stops')
 
   def onPlayBackPaused(self):
     log('player pauses')
     global script_player_pauses
     if script_player_pauses:
       log('Going to execute script = "' + script_player_pauses + '"')
-      subprocess.Popen([script_player_pauses,self.playing_type()])
+      try:
+          subprocess.call([script_player_pauses,self.playing_type()])
+      except:
+          log('ERROR executing script when player pauses')
 
   def onPlayBackResumed(self):
     log('player resumes')
     global script_player_resumes
     if script_player_resumes:
       log('Going to execute script = "' + script_player_resumes + '"')
-      subprocess.Popen([script_player_resumes,self.playing_type()])
+      try:
+          subprocess.call([script_player_resumes,self.playing_type()])
+      except:
+          log('ERROR executing script when player resumes')
 
 if (__name__ == "__main__"):
     log('script version %s started' % __addonversion__)
     Main()
-    del MyPlayer
-    del MyMonitor
-    del Main
     log('script version %s stopped' % __addonversion__)
